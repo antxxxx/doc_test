@@ -1,0 +1,828 @@
+swagger: '2.0'
+info:
+  version: 1.0.0
+  title: Agent basket API
+  description: >-
+    This specification covers Agent Basket API methods. It contains methods to
+    get agent basket, add item to basket, update quantity and remove item from
+    basket.
+host: localhost
+basePath: /api/rest/v1/agent/baskets
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /:
+    post:
+      summary: Create new basket
+      description: >-
+        The goal of this operation is create new basket for agent, this method
+        create new basket and return basketId.
+        If consumer will pass Cookie header with not expired, valid JSESSIONID new session will not be created
+        and existing JSESSIONID will be used. But if consumer will not send this header (or it is expired):
+        application return header named Set-Cookie to handle cookie, using it application
+        will set Cookie value and this cookie header is REQUIRED, e.g. JSESSIONID=1234;
+        This JSESSIONID have to be be used in all subsequent calls to identify session.
+      tags:
+        - basket
+      operationId: createAgentBasket
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: cookie
+          in: header
+          required: false
+          type: string
+          description: >-
+            header parameter to handle cookie, here application could set
+            JSESSIONID value and this cookie header is optional, e.g. JSESSIONID=1234;
+            If not expired, valid JSESSIONID is passed - application will not create new session.
+            But if this value is not passed - application will create a new session.
+      responses:
+        '201':
+          description: >-
+            Basket successfully created and we have basketId of this basket for
+            API consumer
+          schema:
+            $ref: '#/definitions/CreateAgentBasketResponse'
+          headers:
+            Set-Cookie:
+              description: >-
+                header parameter to handle cookie, here application will set
+                JSESSIONID value and this cookie header is REQUIRED, e.g. JSESSIONID=1234;
+              type: string
+          examples:
+            basketId: o123456
+        '500':
+          description: Internal server error, case of technical problem in the service
+          schema:
+            $ref: '#/definitions/FormHandlerInternalServerError'
+  '/{basketId}':
+    get:
+      summary: Get basket contents
+      description: >-
+        The method to get agent basket content by basket id. Additionally this
+        service checks is the agent session is still alive and is the basket
+        created by this agent. In case of error it returns appropriate status
+        code and error
+      tags:
+        - basket
+      operationId: getAgentBasket
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: basketId
+          in: path
+          required: true
+          type: string
+        - name: cookie
+          in: header
+          required: true
+          type: string
+          description: >-
+            header parameter to handle cookie, here application will set
+            JSESSIONID value and this cookie header is REQUIRED, e.g. JSESSIONID=1234;
+      responses:
+        '200':
+          description: Basket content for an agent and basketId
+          schema:
+            $ref: '#/definitions/AgentBasket'
+        '403':
+          description: Agent's session has expired and it is nessessary to create new agent's basket
+          schema:
+            $ref: '#/definitions/AgentSessionExpirationError'
+        '404':
+          description: Agent's basket not found by given basket id
+          schema:
+            $ref: '#/definitions/AgentBasketNotFound'
+        '500':
+          description: Internal server error, case of technical problem with basket content
+          schema:
+            $ref: '#/definitions/FormHandlerInternalServerError'
+  '/{basketId}/customer':
+    put:
+      summary: Associate customer with an order
+      description: >-
+        The goal of this operation is update customer information in the agent basket.
+        It recieves object only with one attribute: 'id'. The value of 'id' attribute should be shopper id.
+        As result of sucessfull update this service returns 200 status code.
+      tags:
+        - basket
+      operationId: updateCustomerToAgentBasket
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: basketId
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/UpdateCustomerRequest'
+        - name: cookie
+          in: header
+          required: true
+          type: string
+          description: >-
+            header parameter to handle cookie, here application will set
+            JSESSIONID value and this cookie header is REQUIRED, e.g. JSESSIONID=1234;
+      responses:
+        '200':
+          description: >-
+            Customer information successfully updated in basket, response body is empty
+        '400':
+          description: Update customer failed due invalid or missed input data
+          schema:
+            $ref: '#/definitions/AgentBasketUpdateCustomerError'
+        '403':
+          description: Agent's session has expired and it is nessessary to create new agent's basket
+          schema:
+            $ref: '#/definitions/AgentSessionExpirationError'
+        '404':
+          description: >-
+            Agent's basket / customer are not found by given basketId / id.
+            There are two possible response:
+            1) basket not found by basketId:
+              code: agent.basket.not.found
+              message: Agent basket not found
+            2) customer is not found by id
+              code: customer.not.found
+              message: Customer is not found
+          schema:
+            $ref: '#/definitions/CustomerAgentBasketNotFound'
+        '422':
+          description: Update customer failed due profile incomplete state
+          schema:
+            $ref: '#/definitions/CustomerUpdateUnprocessableEntityError'
+        '500':
+          description: Internal server error, case of technical problem with basket content or customer profile
+          schema:
+            $ref: '#/definitions/InternalServerError'
+  '/{basketId}/items':
+    post:
+      summary: Add item to basket
+      description: >-
+        The goal of this operation is to add a single item to an agent basket. It receives an
+        object with a single item (parent or child) to add and in case of no
+        technical problems/exceptions returns itemId of added item.
+        If the item is already in the basket, then the quantity of the existing item is updated
+      tags:
+        - basket
+      operationId: addItemToAgentBasket
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: basketId
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/AddItemRequest'
+        - name: cookie
+          in: header
+          required: true
+          type: string
+          description: >-
+            header parameter to handle cookie, here application will set
+            JSESSIONID value and this cookie header is REQUIRED, e.g. JSESSIONID=1234;
+      responses:
+        '201':
+          description: >-
+            Item successfully added to basket, as a result service returns
+            created basket item id
+          schema:
+            $ref: '#/definitions/CreateItemResponse'
+          examples:
+            itemId: ci123456
+        '400':
+          description: Client request validation error WRT input parameters validation
+          schema:
+            $ref: '#/definitions/AddToBasketClientError'
+        '403':
+          description: Agent's session has expired and it is nessessary to create new agent's basket
+          schema:
+            $ref: '#/definitions/AgentSessionExpirationError'
+        '404':
+          description: Agent's basket not found by given basket id
+          schema:
+            $ref: '#/definitions/AgentBasketNotFound'
+        '405':
+          description: >-
+            This status code will be returned in case of sending incorrent request method for this endpoint (e.g. PUT, DELETE)
+            Additionaly, such situation could happen in case of empty or missing path-params
+        '422':
+          description: Client request validation error WRT to business rules
+          schema:
+            $ref: '#/definitions/AddToBasketUnprocessableEntityError'
+        '500':
+          description: Internal server error, case of technical problem with basket content
+          schema:
+            $ref: '#/definitions/FormHandlerInternalServerError'
+  '/{basketId}/items/{itemId}':
+    put:
+      summary: Update quantity of an item in the basket
+      description: >-
+        The goal of this operation is update item quantity in the agent basket.
+        It recieves object with two attributes: itemId and quantity, quantity is an absolute value.
+        As result of sucessfull update this service returns 200 status code.
+        This endpoint is used to update quantity of child items too, so it is possible to pass itemId of child item here.
+        Reducing quantity of main product result in the quantites of any child items being reduced,
+        so they are not greater than the quantity of the parent product.
+      tags:
+        - basket
+      operationId: updateItemToAgentBasket
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: basketId
+          in: path
+          required: true
+          type: string
+        - name: itemId
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/UpdateItemRequest'
+        - name: cookie
+          in: header
+          required: true
+          type: string
+          description: >-
+            header parameter to handle cookie, here application will set
+            JSESSIONID value and this cookie header is REQUIRED, e.g. JSESSIONID=1234;
+      responses:
+        '200':
+          description: >-
+            Item successfully added to basket, response body is empty
+        '400':
+          description: Update item quantity failed due invalid or missed input data
+          schema:
+            $ref: '#/definitions/AgentBasketUpdateClientError'
+        '403':
+          description: Agent's session has expired and it is nessessary to create new agent's basket
+          schema:
+            $ref: '#/definitions/AgentSessionExpirationError'
+        '404':
+          description: >-
+            Agent's basket item / basket are not found by given basket itemId / basketId.
+            There are two possible response:
+            1) basket not found by basketId:
+              code: agent.basket.not.found
+              message: Agent basket not found
+            2) item in basket not found by itemId
+              code: agent.basket.item.not.found
+              message: Agent basket item not found
+          schema:
+            $ref: '#/definitions/AgentBasketItemNotFound'
+        '422':
+          description: Update item quantity failed due incorrect input data (but correct from from format validation point of view)
+          schema:
+            $ref: '#/definitions/AgentBasketUpdateUnprocessableEntityError'
+        '500':
+          description: Internal server error, case of technical problem with basket content
+          schema:
+            $ref: '#/definitions/AgentBasketUpdateServerError'
+    delete:
+      summary: Remove item from basket
+      description: >-
+        The operation to delete item from basket. It receives itemId to delete and return 204 in case of successful deletion.
+        Deleting a main product should still result in all child products being deleted too.
+        This endpoint is used to delete child items too, so it is possible to pass itemId of child item here.
+      tags:
+        - basket
+      operationId: deleteItemFromAgentBasket
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: basketId
+          in: path
+          required: true
+          type: string
+        - name: itemId
+          in: path
+          required: true
+          type: string
+        - name: cookie
+          in: header
+          required: true
+          type: string
+          description: >-
+            header parameter to handle cookie, here application will set
+            JSESSIONID value and this cookie header is REQUIRED, e.g. JSESSIONID=1234;
+      responses:
+        '204':
+          description: >-
+            Item successfully deleted from basket
+        '403':
+          description: Agent's session has expired and it is nessessary to create new agent's basket
+          schema:
+            $ref: '#/definitions/AgentSessionExpirationError'
+        '404':
+          description: >-
+            Agent's basket item / basket are not found by given basket itemId / basketId.
+            There are two possible response:
+            1) basket not found by basketId:
+              code: agent.basket.not.found
+              message: Agent basket not found
+            2) item in basket not found by itemId
+              code: agent.basket.item.not.found
+              message: Agent basket item not found
+          schema:
+            $ref: '#/definitions/AgentBasketItemNotFound'
+        '500':
+          description: Internal server error, case of technical problem with basket content
+          schema:
+            $ref: '#/definitions/AgentBasketRemoveItemServerError'
+definitions:
+  GenericError:
+    type: object
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+  InternalServerError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      code: server.internal.error
+      message: Internal server error has been occured
+  FormHandlerInternalServerError:
+    allOf:
+      - $ref: '#/definitions/InternalServerError'
+    example:
+      code: server.internal.error
+      message: Internal server error has been occured
+    x-example-1:
+      code: unknown.error
+      message: $messageGeneratedByFormHandler
+  AgentSessionExpirationError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      code: agent.session.expired
+      message: Agent session has expired
+  AgentBasketNotFound:
+      allOf:
+        - $ref: '#/definitions/GenericError'
+      example:
+        code: agent.basket.not.found
+        message: Agent basket not found
+  AddToBasketClientError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      # For given parentItemId we are not able to find corresponding Product in ATG Catalog Repository (to be moved to 422?)
+      code: parent.product.id.null.or.empty
+      message: Parent's product id can't be null or empty
+    x-example-1:
+      # Request property 'skuId' is not specified or has blank value
+      code: sku.id.null.or.empty
+      message: Sku id can't be null or empty
+    x-example-2:
+      # Quantity specified equals to '0'
+      code: item.quantity.is.zero
+      message: Please enter a quantity different to 0
+    x-example-3:
+      # Request property 'quantity' is not specified, has blank value, has non-numeric value or numeric value exceeds Java Integer data type
+      code: item.quantity.invalid.number
+      message: Please enter a valid number
+    x-example-4:
+      # [NOT NEEDED?] When particular product variation (SKU) is not selected for multi-SKU Product (e.g. clothes or shoes with sizes) on the product page or
+      # no quantities specified on product set page (e.g. towel sets)
+      code: item.quantity.invalid.or.item.not.selected
+      message: Please enter a valid quantity or select at least one product to add to your basket
+    x-example-5:
+      # When quantity specified for Fabric By Length products is a fractional number, e.g. '3.7'
+      code: item.quantity.fractional
+      message: Quantity can't be fractional number
+  AddToBasketUnprocessableEntityError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      # For given skuId there is either no corresponding Product in ATG Catalog Repository or that Product has 'indexable' property set to false
+      code: product.id.does.not.exist
+      message: There is no product with requested id
+    x-example-1:
+      # For given skuId corresponding Product in ATG Catalog Repository is marked as the one available for sale in stores only (e.g. knife)
+      code: product.available.in.store
+      message: Requested product is available only in store
+    x-example-2:
+      # For given skuId no SKU is found in ATG Catalog Repository
+      code: sku.id.does.not.exist
+      message: There is no sku with requested id
+    x-example-3:
+      # SKU with given skuId is marked as the one available for sale in stores only (e.g. knife)
+      code: sku.available.in.store
+      message: Requested sku is available only in store
+    x-example-4:
+      # Item being added is not a child item for the item specified in property 'parentItemId'
+      code: child.item.doesnt.fit.parent
+      message: Child item is not parent's selectable additional service
+    x-example-5:
+      # Item being added is out of stock (stock level is 0)
+      code: item.not.in.stock
+      message: Sorry, this item is no longer in stock
+    x-example-6:
+      # Maximum available quantity of the item is already in the basket and there is not enough stock for the item being added (stock level is greater than 0
+      # but is less than quantity being added)
+      code: item.availability.less.than.requested
+      message: Sorry, we now only have {0} of these items available.
+    x-example-7:
+      # [DUPLICATE for above?] There is not enough stock for the item being added (stock level is greater than 0 but is less than quantity being added)
+      code: item.availability.less.than.requested.please.reduce
+      message: Sorry, we now only have {0} of these items available. Please reduce your order quantity
+    x-example-8:
+      # Item is discontinued and not available for sale anymore
+      code: product.not.available.online
+      message: Sorry, this product is no longer available online
+    x-example-9:
+      # There is no price for the item in ATG PriceList Repository
+      code: item.price.not.found
+      message: Price Item not found for $PRODUCT_CODE
+    x-example-10:
+      # Property 'termsAccepted' is not set to 'true' for the item that requires Terms and Conditions acceptance (e.g. Fabric by Length items)
+      code: terms.has.not.accepted
+      message: Please check the box to show you have read and understood the terms and conditions
+    x-example-11:
+      # There is no item in basket with commerceItemId specified in property 'parentItemId' for the child item being added
+      code: parent.item.does.not.exist
+      message: Parent item with given parentItemId does not exists
+    x-example-12:
+      # Maximum available quantity of the item is already in the basket and quantity of the item being added is greater than quantity limit specified
+      # for that item
+      code: item.limited.per.customer
+      message: Sorry, we have limited this item to {0} per customer.
+    x-example-13:
+      # cart form handler warning
+      # There is not enough stock for the item being added (stock level is greater than 0 but is less than quantity being added)
+      # Maximum available quantity of items has been added to basket
+      code: add.item.warning
+      message: Sorry, we now only have {0} of these items available. We have added {1} to your basket.
+    x-example-14:
+      # cart form handler warning
+      # Quantity of the item being added is greater than quantity limit specified for that item
+      # Maximum available quantity of items has been added to basket
+      code: add.item.warning
+      message: Sorry, we have limited this item to {0} per customer. We have added {1} to your basket.
+  AgentBasket:
+    type: object
+    properties:
+      basketId:
+        type: string
+      subtotal:
+        type: number
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Item'
+      qualifications:
+        type: array
+        items:
+          type: string
+      customer:
+        $ref: '#/definitions/Customer'
+    example:
+      basketId: 'o40002'
+      subtotal: 21705.8
+      items:
+        -
+          id: ci9000001
+          name: M2M Curtain for OD-142. ACT & Fabric Sku
+          quantity: 1
+          uom: per metre
+          price: 445.8
+          skuId: '10210'
+          productId: '210'
+          productCode: '200'
+          imageUrl: //johnlewis.scene7.com/is/image/JohnLewis/231209830?$chk_thmb_bdl$
+          deliveryOptions:
+            -
+              title: UK
+              isAvailable: true
+              name: Delivery to UK
+            -
+              title: CC
+              isAvailable: true
+              name: Click & collect via John Lewis and Waitrose
+            -
+              title: CP
+              isAvailable: false
+              name: Collect via Collect<b>+</b><br>not available
+            -
+              title: INT
+              isAvailable: false
+              name: International delivery not available
+          childItems:
+            -
+              imageUrl: //johnlewis.scene7.com/is/image/JohnLewis/231289596?$chk_icon_bdl$
+              price: 10570
+              quantity: 2
+              skuId: '60692'
+              productCode: '200'
+              name: Batteries OOS
+              id: ci6000010
+          type: m2m
+          availability:
+            stockLevel: 10000
+            availabilityStatus: INSTOCK
+            message: In stock
+          information:
+            -
+              name: Fabric
+              value: M2M Curtain for OD-142. ACT & Fabric Sku
+            -
+              name: Style
+              value: Double Pinch Pleat
+            -
+              name: Dimensions
+              value: Single, 100cm width x 150cm drop, 2cm heading
+            -
+              name: Lining
+              value: Standard, White
+      qualifications:
+        - You've qualified for free standard delivery on this order
+      customer:
+        id: shopperId
+        name: Mr Test Customer
+  ChildItem:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      skuId:
+        type: string
+      productCode:
+        type: string
+        description: non-ATG JL-wide SKU identifier
+      quantity:
+        type: number
+      price:
+        type: number
+      imageUrl:
+        type: string
+  DeliveryOption:
+    type: object
+    properties:
+      title:
+        type: string
+      name:
+        type: string
+      isAvailable:
+        type: boolean
+  Information:
+    type: object
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+  Item:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      skuId:
+        type: string
+      productId:
+        type: string
+      productCode:
+        type: string
+        description: non-ATG JL-wide SKU identifier
+      quantity:
+        type: number
+      uom:
+        type: string
+        description: unit of measure
+      price:
+        type: number
+      deliveryOptions:
+        type: array
+        items:
+          $ref: '#/definitions/DeliveryOption'
+      availability:
+        $ref: '#/definitions/Availability'
+      childItems:
+        type: array
+        items:
+          $ref: '#/definitions/ChildItem'
+      type:
+        type: string
+        description: type of basket item (e.g. M2M, ASAF etc)
+      information:
+        type: array
+        items:
+          $ref: '#/definitions/Information'
+      imageUrl:
+        type: string
+  Availability:
+    type: object
+    properties:
+      stockLevel:
+        type: number
+      availabilityStatus:
+        type: string
+        description: item's stock status
+      message:
+        type: string
+  Customer:
+    type: object
+    properties:
+      id:
+        type: string
+        description: customer's shopper id
+      name:
+        type: string
+  UpdateCustomerRequest:
+    type: object
+    required:
+      - id
+    properties:
+      id:
+        type: string
+        description: shoppperId of customer
+    example:
+      id: shoppperId
+  AddItemRequest:
+    type: object
+    required:
+      - quantity
+      - skuId
+    properties:
+      quantity:
+        type: integer
+        format: integer
+      skuId:
+        type: string
+      parentItemId:
+        type: string
+        description: parent item identifier, this attribute is optional and needed to identify parent item in case of child item addition
+      termsAccepted:
+        type: boolean
+        default: false
+        description: this parameter should be passed as optional for parent products (not for every product)
+    example:
+      quantity: 1
+      skuId: sku123456
+      parentItemId: ci123456
+      termsAccepted: true
+  CreateAgentBasketResponse:
+    type: object
+    properties:
+      basketId:
+        type: string
+  UpdateItemRequest:
+    type: object
+    required:
+      - quantity
+    properties:
+      quantity:
+        type: integer
+        description: quantity is an absolute value, in other words it set quantity in basket to this number
+    example:
+      quantity: 42
+  CreateItemResponse:
+    type: object
+    properties:
+      itemId:
+        type: string
+  AgentBasketUpdateCustomerError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      # Customer id is not specified or empty
+      code: customer.id.null.or.empty
+      message: Please enter a customer id
+  AgentBasketUpdateClientError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      # Quantity specified equals to '0'
+      code: item.quantity.is.zero
+      message: Please enter a quantity different to 0
+    x-example-1:
+      # Quantity specified not a numeric value
+      code: item.quantity.invalid.is.not.number
+      message: Please enter a number for the value.
+    x-example-2:
+      # Quantity is not specified in the request, its value is blank or is out of Java Integer range
+      code: item.quantity.to.update.invalid
+      message: Invalid quantity for item
+    x-example-3:
+      # When quantity specified for Fabric By Length products is a fractional number, e.g. '3.7'
+      code: item.quantity.fractional
+      message: Quantity can't be fractional number
+    x-example-4:
+      # Request property 'quantity' has negative value
+      code: item.quantity.invalid.number
+      message: Please enter a valid number
+  AgentBasketUpdateUnprocessableEntityError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      # Quantity specified for child item is greater than quantity of corresponding parent item
+      code: child.items.quantity.more.than.parent
+      message: Sorry, you've selected too many items to accompany the main product. Please reduce the quantity
+    x-example-1:
+      # Quantity specified is greater than maximum quantity available in stock for the item (stock level is greater than 0, but is less than
+      # quantity being added)
+      code: item.availability.less.than.requested
+      message: Sorry, we now only have {0} of these items available.
+    x-example-2:
+      # Item being updated became out of stock (stock level is 0)
+      code: item.not.in.stock
+      message: Sorry, this item is no longer in stock
+    x-example-3:
+      # Quantity of the item being updated is greater than quantity limit specified for that item
+      code: item.limited.per.customer
+      message: Sorry, we have limited this item to {0} per customer.
+    x-example-4:
+      # Item is discontinued and not available for sale anymore
+      code: product.not.available.online
+      message: Sorry, this product is no longer available online
+    x-example-5:
+      # cart form handler warning
+      # [NOT USED?] There is not enough stock for the item being updated (stock level is greater than 0 but is less than quantity being added)
+      code: item.quantity.update.warning
+      message: Sorry, we now only have {0} of these items available. We have added {1} to your basket.
+    x-example-6:
+      # cart form handler warning
+      # [NOT USED?] Quantity of the item being added is greater than quantity limit specified for that item
+      code: item.quantity.update.warning
+      message: Sorry, we have limited this item to {0} per customer. We have added {1} to your basket.
+  AgentBasketUpdateServerError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      code: server.internal.error
+      message: Internal server error has been occured
+    x-example-1:
+      # [NOT USED] Generic error during quantity update
+      code: item.update.failed
+      message: Sorry, we've had a problem adding this item to your basket. Please try again
+    x-example-2:
+      # [NOT USED] Generic error during quantity update
+      code: item.quantity.update.failed
+      message: There was an error updating the item quantities on your order.
+  AgentBasketRemoveItemServerError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      code: server.internal.error
+      message: Internal server error has been occured
+    x-example-1:
+      # [NOT USED] Generic error when removing item from basket
+      code: item.delete.failed
+      message: There was an error while attempting to update the order.
+  AgentBasketItemNotFound:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      code: agent.basket.item.not.found
+      message: Agent basket item not found
+    x-example-1:
+      code: agent.basket.not.found
+      message: Agent basket not found
+  CustomerAgentBasketNotFound:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      code: customer.not.found
+      message: Customer is not found
+    x-example-1:
+      code: agent.basket.not.found
+      message: Agent basket not found
+  CustomerUpdateUnprocessableEntityError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      code: customer.profile.incomplete
+      message: "Customer's profile is incomplete: missing required field(s): {0}"

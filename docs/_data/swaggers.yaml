@@ -1,0 +1,5 @@
+-   name: agent-basket
+    swaggerFile: agent-basket-v1.yaml
+-   name: collectionpoints
+    swaggerFile: collectionpoints-v1.yaml
+    

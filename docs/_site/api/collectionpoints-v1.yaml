@@ -1,0 +1,202 @@
+swagger: '2.0'
+info:
+  version: '1'
+  title: Collection Points
+  description: >-
+    Locations where customers can collect an order (click and collect)
+host: localhost
+basePath: /api/rest/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /collectionpoints:
+    get:
+      description: >-
+        Search for John Lewis, Waitrose and Collect Plus collection points given
+        a postcode or town name.
+
+        Results are ordered as follows:
+
+          1st - Nearest John Lewis
+
+          2nd -  Nearest Waitrose
+
+          Subsequent - Collection points (of any type) ordered by nearest distance
+      tags:
+        - click and collect
+      operationId: searchCollectionPoints
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: q
+          in: query
+          required: true
+          type: string
+          description: >-
+            Search term text
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          description: >-
+            Maximum number of collection points to be returned.
+          default: 20
+        - name: basketValue
+          in: query
+          required: false
+          type: number
+          format: double
+          default: 0
+      responses:
+        200:
+          description: >-
+            Request processed successfully, search result populated and returns to the consumer
+          schema:
+            $ref: '#/definitions/CollectionPointsSearchResult'
+        '400':
+          description: Request parameters are invalid
+          schema:
+            $ref: '#/definitions/CollectionPointsSearchBadRequest'
+        '500':
+          description: Collection points service is unavailable or some technical problem on the server-side
+          schema:
+            $ref: '#/definitions/InternalServerError'
+definitions:
+  GenericError:
+    type: object
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+  InternalServerError:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    example:
+      code: collection.point.service.down
+      message: Collection point service is down
+    x-example-1:
+      code: server.internal.error
+      message: Internal server error has been occured
+  CollectionPointsSearchBadRequest:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    # empty value of search term parameter
+    example:
+      code: search.term.empty
+      message: Search term is empty
+    # invalid value of search limit parameter (negative, zero, not a number)
+    x-example-1:
+      code: search.limit.invalid
+      message: Search limit is not valid
+    # search limit is too large (e.g. 10000)
+    x-example-2:
+      code: search.limit.too.large
+      message: Search limit is too large
+    # invalid/unparsable value of basketValue parameter (negative, not a number)
+    x-example-3:
+      code: basket.value.invalid
+      message: Basket value is not valid
+  CollectionPointNotFound:
+    allOf:
+      - $ref: '#/definitions/GenericError'
+    # invalid collection point id
+    example:
+      code: collection.point.item.not.found
+      message: Collection point item not found
+  CollectionPointsSearchResult:
+    type: object
+    properties:
+      totalFound:
+        type: number
+      collectionPoints:
+        type: array
+        items:
+          $ref: '#/definitions/CollectionPointSearchResultItem'
+    example:
+      totalFound : 2
+      collectionPoints:
+        -
+          type: 'John Lewis'
+          id: '42'
+          storeName: 'Megastore #1'
+          collectionCharge: 42.1
+          collectionTime: "1996-12-19T16:39:57-01:00"
+          distanceInMiles: 1.1
+          address:
+            street1: '70 South John Street'
+            street2: ''
+            city: 'Liverpool'
+            county: 'Merseyside'
+            postcode: 'L1 8BJ'
+          openingHours:
+            - dayOfWeek: "Mon"
+              openingTime: "9:00"
+              closingTime: "22:30"
+            - dayOfWeek: "Wed"
+              openingTime: "9:30"
+              closingTime: "22:30"
+            - dayOfWeek: "Sat"
+              openingTime: "10:00"
+              closingTime: "21:00"
+              comment: "Now open on Saturdays!"
+  CollectionPointSearchResultItem:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - John Lewis
+          - Waitrose
+          - Collect Plus
+      id:
+        type: string
+      storeName:
+        type: string
+      collectionCharge:
+        type: number
+        format: float
+      collectionTime:
+        type: string
+        format: date-time
+      distanceInMiles:
+        type: number
+        format: float
+      address:
+        $ref '#/definitions/Address'
+      openingHours:
+        type: array
+        items:
+          type: object
+          properties:
+            dayOfWeek:
+              type: string
+            openingTime:
+              type: string
+            closingTime:
+              type: string
+            comment:
+              type: string
+      isAvailable:
+        type: boolean
+      unavailabilityReason:
+        type: string
+  Address:
+     type: object
+     properties:
+       street1:
+         type: string
+       street2:
+         type: string
+       city:
+         type: string
+       county:
+         type: string
+       postcode:
+         type: string

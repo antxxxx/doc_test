@@ -6,7 +6,18 @@ layout: default
     <head>
     </head>
 <body>
-  hello world
-  <a href=swagger-ui/index.html?url=../../api/swagger.json>first</a>
+  hello world 3
+
+<ul>
+{% for swagger in site.data.swaggers %}
+  <li>
+  <a href=swagger-ui/index.html?url=../../api/{{ swagger.swaggerFile }}>
+      {{ swagger.name }}
+    </a>
+  </li>
+{% endfor %}
+</ul>
+
+
 </body>
  </html>
