@@ -1,13 +1,13 @@
 ---
 category: Stuff
 path: '/stuff/:id'
-title: 'Delete a thing'
+title: 'Delete a test thing'
 type: 'DELETE'
 
 layout: nil
 ---
 
-This method allows the user to post a new thing to his stuff.
+This method allows the user to post a new test thing to his stuff.
 
 ### Request
 
